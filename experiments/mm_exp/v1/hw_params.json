@@ -1,0 +1,36 @@
+{
+    "DSE": {
+        "groups": [
+            {"1": ["A_buffer_size", "B_buffer_size", "C_buffer_size"]},
+            {"2": ["tile_M", "tile_N", "tile_K"]},
+            {"3": ["M_Unroll", "N_Unroll", "K_Unroll"]}
+        ],
+        "parameters": [
+            {"A_buffer_size": [1024, 2048, 4096]},
+            {"B_buffer_size": [1024, 2048, 4096]},
+            {"C_buffer_size": [1024, 2048, 4096]},
+            {"tile_M": [16, 32, 64]},
+            {"tile_N": [16, 32, 64]},
+            {"tile_K": [16, 32, 64]},
+            {"M_Unroll": [2, 4, 8]},
+            {"N_Unroll": [2, 4, 8]},
+            {"K_Unroll": [2, 4, 8]}
+        ]
+    },
+    "hardware_gen": {
+        "acc_name": "MM_EXP_Z1",
+        "acc_version": 1,
+        "acc_sub_version": 0,
+        "acc_src": "mm_exp/v1/accelerator",
+        "acc_link_folder": "mm_exp_src_v1",
+        "hlx_tcl_script": "templated_template_1dma_hwc_Z1.tcl",
+        "top": "MM_ACC",
+        "del": "mm_exp",
+        "del_version": "1",
+        "hls_clock": "5",
+        "hlx_Mhz": "200",
+        "axi_bitW": "32",
+        "axi_burstS": "32",
+        "board": "Z1"
+    }
+}

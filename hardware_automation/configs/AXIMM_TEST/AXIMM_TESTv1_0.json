@@ -1,0 +1,20 @@
+{
+  "acc_name": "AXIMM_TEST",
+  "acc_version": 1,
+  "acc_sub_version": 0,
+  "acc_test": false,
+  "acc_test_id": 0,
+  "acc_test_desc": "",
+  "acc_src": "aximm_testing/v1/accelerator",
+  "acc_link_folder": "aximm_testing_src_v1",
+  "hlx_tcl_script": "templated_pynq_axim_io_enabled.tcl",
+  "top": "ACC",
+  "board_script": "",
+  "del": "aximm_testing",
+  "del_version": "1",
+  "hls_clock": "5",
+  "hlx_Mhz": "200",
+  "axi_bitW": "32",
+  "axi_burstS": "32",
+  "board": "Z1"
+}

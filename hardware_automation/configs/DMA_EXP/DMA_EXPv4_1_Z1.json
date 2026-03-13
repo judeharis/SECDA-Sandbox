@@ -1,0 +1,16 @@
+{
+  "acc_name": "DMA_EXP_Z1",
+  "acc_version": 4,
+  "acc_sub_version": 1,
+  "acc_src": "dma_exp/v4/accelerator",
+  "acc_link_folder": "dma_exp_src_v4_1",
+  "hlx_tcl_script": "Z1/Z1_dma_4_hp_4_ctrl_hwc.tcl",
+  "top": "DMA_EXP_V4_0",
+  "del" : "dma_exp",
+  "del_version": "4",
+  "hls_clock" : "5",
+  "hlx_Mhz": "200",
+  "axi_bitW": "32",
+  "axi_burstS": "32",
+  "board": "Z1"
+}

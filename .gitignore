@@ -1,0 +1,15 @@
+.vscode
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-SECDA-Sandbox
+cmds
+hardware_automation/generated
+hardware_automation/acc_srcs
+.venv
+Exp_Suite/results
+DSE_Explorer/generated
+experiments/aximm_testing
+experiments/dma_exp
+experiments/dummy_exp
+plan.md

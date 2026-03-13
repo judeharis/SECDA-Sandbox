@@ -1,0 +1,38 @@
+{
+  "output_root": "generated",
+  "experiment_folder_format": "{exp_name}_{exp_version}",
+  "runs_csv": "runs.csv",
+  "hw_params_filename": "hw_params.json",
+  "results_dir_name": "results",
+  "hw_gen_dir_name": "hardware_gen",
+  "generated_files_dir": "generated_files",
+  "hw_config_filename": "hw_config.json",
+  "manifest_filename": "manifest.json",
+  "config_json": "config.json",
+  "hw_gen_script": "hardware_automation/hw_gen.py",
+  "load_bitstream_script": "exp_gen_suite/scripts/load_bitstream.py",
+  "run_log_name": "run_remote_{run_id}.log",
+  "hw_gen_script_template": "hw_gen_{run_id}.sh",
+  "run_script_template": "run_{run_id}.sh",
+  "hw_gen_glob": "hw_gen_*.sh",
+  "run_glob": "run_*.sh",
+  "hw_gen_all_name": "hw_gen_all.sh",
+  "run_all_name": "run_all.sh",
+  "collect_results_name": "collect_all_results.sh",
+  "collected_results_dir": "all_results",
+  "collect_dataset_name": "collect_dataset.sh",
+  "dataset_dir": "dataset",
+  "dataset_runs_dir": "runs",
+  "repo_root_marker": "WORKSPACE",
+  "hlx_reports": [
+    "utilization_report_impl_full.txt",
+    "utilization_report_impl_ip.txt",
+    "timing_report_impl_full.txt",
+    "timing_report_impl_ip.txt"
+  ],
+  "hw_gen_logs": [
+    "outputHLS.log",
+    "outputHLX.log"
+  ],
+  "artifact_suffix_format": "_{run_id}"
+}

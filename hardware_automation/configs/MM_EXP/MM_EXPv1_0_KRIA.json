@@ -1,0 +1,16 @@
+{
+  "acc_name": "MM_EXP_KRIA",
+  "acc_version": 1,
+  "acc_sub_version": 0,
+  "acc_src": "mm_exp/v1/accelerator",
+  "acc_link_folder": "mm_exp_src_v1",
+  "hlx_tcl_script": "templated_1dma_hwc_kria.tcl",
+  "top": "MM_ACC",
+  "del": "mm_exp",
+  "del_version": "1",
+  "hls_clock": "5",
+  "hlx_Mhz": "200",
+  "axi_bitW": "32",
+  "axi_burstS": "32",
+  "board": "KRIA"
+}
