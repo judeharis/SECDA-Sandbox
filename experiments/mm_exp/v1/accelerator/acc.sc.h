@@ -34,9 +34,9 @@ SC_MODULE(ACCNAME) {
   // ================================================= //
   // Global buffers
   // ================================================= //
-  sc_int<32> A_buffer[4096];
-  sc_int<32> B_buffer[4096];
-  sc_int<32> C_buffer[4096];
+  sc_int<32> A_buffer[A_buffer_size];
+  sc_int<32> B_buffer[B_buffer_size];
+  sc_int<32> C_buffer[C_buffer_size];
 
   // ================================================= //
   // Global signals

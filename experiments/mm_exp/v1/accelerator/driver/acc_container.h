@@ -29,6 +29,7 @@ struct acc_times {
   duration_ns fpga_total;
   duration_ns cpu_total;
   duration_ns driver;
+  duration_ns recv_cycles
 
   void print() {
 #ifdef ACC_PROFILE
@@ -36,6 +37,7 @@ struct acc_times {
     prf_out(TSCALE, fpga_total);
     prf_out(TSCALE, cpu_total);
     prf_out(TSCALE, driver);
+    prf_out(TSCALE, recv_cycles);
     cout << "================================================" << endl;
 #endif
   }
@@ -44,6 +46,8 @@ struct acc_times {
     std::ofstream file("prf.csv", std::ios::out);
     prf_file_out(TSCALE, fpga_total, file);
     prf_file_out(TSCALE, cpu_total, file);
+    // prf_file_out(TSCALE, driver, file);
+    prf_file_out(TSCALE, recv_cycles, file);
     file.close();
 #endif
   }

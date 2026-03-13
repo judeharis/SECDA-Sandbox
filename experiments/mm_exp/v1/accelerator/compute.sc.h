@@ -5,10 +5,10 @@ void ACCNAME::Recv() {
   bool started = start.read();
   compute.write(false);
   send.write(false);
-  Recv_si.write(0);
+  HWC_SIG(Recv, 0);
   wait();
   while (1) {
-    Recv_si.write(1);
+    HWC_SIG(Recv, 1);
     wait();
 
     opcode packet(din1.read().data);
@@ -38,8 +38,7 @@ void ACCNAME::Recv() {
       wait();
     }
 
-    Recv_si.write(2);
-
+    HWC_SIG(Recv, 2);
     while (compute) wait();
 
     // Sends then clears C if true
@@ -48,7 +47,7 @@ void ACCNAME::Recv() {
       wait();
     }
 
-    Recv_si.write(3);
+    HWC_SIG(Recv, 3);
     while (send) wait();
 
     wait();

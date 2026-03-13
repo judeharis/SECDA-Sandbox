@@ -23,7 +23,7 @@
         "acc_sub_version": 0,
         "acc_src": "mm_exp/v1/accelerator",
         "acc_link_folder": "mm_exp_src_v1",
-        "hlx_tcl_script": "templated_template_1dma_hwc_Z1.tcl",
+        "hlx_tcl_script": "Z1/Z1_dma_1_hp_1_ctrl_hwc.tcl",
         "top": "MM_ACC",
         "del": "mm_exp",
         "del_version": "1",
