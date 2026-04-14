@@ -52,6 +52,7 @@ REQUIRED_SETTINGS = [
     "hlx_reports",
     "hw_gen_logs",
     "artifact_suffix_format",
+    "status_filename",
 ]
 
 
@@ -187,16 +188,160 @@ def build_group_choices(params_map, groups):
     return group_choices
 
 
-def replace_params_in_file(path: Path, mapping: dict):
+# ---------------------------------------------------------------------------
+# Parameter replacement patterns – searched in priority order (first match wins).
+# Each entry is a tuple of:
+#   (label, regex_template, replacement_template)
+#
+# In the templates the literal {NAME} is substituted with the escaped
+# parameter name at runtime.
+#
+# regex_template  – must contain exactly ONE capturing group around the
+#                   *value* to replace and use a raw-string.
+#                   Group layout: (prefix)(value)(suffix)
+# replacement_template – a format-string producing the full replacement;
+#                        receives {prefix}, {value} and {suffix}.
+#
+# Re-order, add or remove entries here to change search priorities.
+# ---------------------------------------------------------------------------
+PARAM_REPLACE_PATTERNS: list[tuple[str, str, str]] = [
+    # 1) #define NAME <value>
+    (
+        "#define",
+        r'(#\s*define\s+{NAME}\s+)([-+]?\d+)(\b)',
+        r'\g<1>{VALUE}\g<3>',
+    ),
+    # 2) const int NAME = <value>;
+    (
+        "const int",
+        r'(\bconst\b\s+\bint\b\s+{NAME}\s*=\s*)([-+]?\d+)(\s*;)',
+        r'\g<1>{VALUE}\g<3>',
+    ),
+    # 3) int NAME = <value>;
+    (
+        "int",
+        r'(\bint\b\s+{NAME}\s*=\s*)([-+]?\d+)(\s*;)',
+        r'\g<1>{VALUE}\g<3>',
+    ),
+]
+
+
+def _write_update_status_function(sh, status_filename: str):
+    """Write a bash helper ``update_status`` into *sh*.
+
+    Usage inside generated scripts::
+
+        update_status <stage> attempted              # mark attempted + timestamp
+        update_status <stage> success [exit_code]    # mark success=true
+        update_status <stage> failure [exit_code]    # mark success=false
+        update_status <stage> duration <seconds>     # record duration
+
+    The function uses an inline Python snippet to atomically read/merge/write
+    the JSON status file so concurrent calls are safe.
+    """
+    sh.write(f'STATUS_FILE="$RUN_DIR/{status_filename}"\n')
+    sh.write('update_status() {\n')
+    sh.write('  local stage="$1" action="$2" extra="${3:-}"\n')
+    sh.write('  STATUS_FILE="$STATUS_FILE" STAGE="$stage" ACTION="$action" EXTRA="$extra" python3 - <<\'_PYSTAT\'\n')
+    sh.write('import json, os, datetime, sys\n')
+    sh.write('from pathlib import Path\n')
+    sh.write('sf = Path(os.environ["STATUS_FILE"])\n')
+    sh.write('stage = os.environ["STAGE"]\n')
+    sh.write('action = os.environ["ACTION"]\n')
+    sh.write('extra = os.environ.get("EXTRA", "")\n')
+    sh.write('now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")\n')
+    sh.write('blank = {"attempted": False, "success": None, "exit_code": None, "timestamp": None, "duration_seconds": None}\n')
+    sh.write('try:\n')
+    sh.write('    data = json.loads(sf.read_text()) if sf.exists() else {}\n')
+    sh.write('except Exception:\n')
+    sh.write('    data = {}\n')
+    sh.write('s = data.setdefault(stage, dict(blank))\n')
+    sh.write('for k, v in blank.items():\n')
+    sh.write('    s.setdefault(k, v)\n')
+    sh.write('if action == "attempted":\n')
+    sh.write('    s["attempted"] = True\n')
+    sh.write('    s["timestamp"] = now\n')
+    sh.write('elif action == "success":\n')
+    sh.write('    s["success"] = True\n')
+    sh.write('    if extra: s["exit_code"] = int(extra)\n')
+    sh.write('    if not s["timestamp"]: s["timestamp"] = now\n')
+    sh.write('elif action == "failure":\n')
+    sh.write('    s["success"] = False\n')
+    sh.write('    if extra: s["exit_code"] = int(extra)\n')
+    sh.write('    if not s["timestamp"]: s["timestamp"] = now\n')
+    sh.write('elif action == "duration":\n')
+    sh.write('    try: s["duration_seconds"] = float(extra)\n')
+    sh.write('    except ValueError: pass\n')
+    sh.write('sf.parent.mkdir(parents=True, exist_ok=True)\n')
+    sh.write('sf.write_text(json.dumps(data, indent=2) + "\\n")\n')
+    sh.write('_PYSTAT\n')
+    sh.write('}\n\n')
+
+
+def _write_parse_hls_hlx_status(sh, hw_gen_dir_var: str, acc_tag_var: str):
+    """Write bash snippet that parses HLS/HLX logs and updates status."""
+    sh.write(f'HLS_LOG="${{{hw_gen_dir_var}}}/${{{acc_tag_var}}}/outputHLS.log"\n')
+    sh.write(f'HLX_LOG="${{{hw_gen_dir_var}}}/${{{acc_tag_var}}}/outputHLX.log"\n')
+    sh.write('HLS_LOG="$HLS_LOG" HLX_LOG="$HLX_LOG" STATUS_FILE="$STATUS_FILE" python3 - <<\'_PYHLSTAT\'\n')
+    sh.write('import json, os, re, datetime\n')
+    sh.write('from pathlib import Path\n')
+    sh.write('sf = Path(os.environ["STATUS_FILE"])\n')
+    sh.write('hls_log = Path(os.environ["HLS_LOG"])\n')
+    sh.write('hlx_log = Path(os.environ["HLX_LOG"])\n')
+    sh.write('now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")\n')
+    sh.write('blank = {"attempted": False, "success": None, "exit_code": None, "timestamp": None, "duration_seconds": None}\n')
+    sh.write('try:\n')
+    sh.write('    data = json.loads(sf.read_text()) if sf.exists() else {}\n')
+    sh.write('except Exception:\n')
+    sh.write('    data = {}\n')
+    sh.write('elapsed_re = re.compile(r"(?:Elapsed|Total elapsed)\\s+time[:\\s]+(\\d+)\\s*(?:hours?|h)[,\\s]+(\\d+)\\s*(?:minutes?|min|m)[,\\s]+(\\d+)\\s*(?:seconds?|sec|s)", re.I)\n')
+    sh.write('def parse_log(log_path, stage_key):\n')
+    sh.write('    s = data.setdefault(stage_key, dict(blank))\n')
+    sh.write('    for k, v in blank.items():\n')
+    sh.write('        s.setdefault(k, v)\n')
+    sh.write('    if not log_path.exists():\n')
+    sh.write('        return\n')
+    sh.write('    text = log_path.read_text(errors="replace")\n')
+    sh.write('    s["attempted"] = True\n')
+    sh.write('    if not s["timestamp"]:\n')
+    sh.write('        s["timestamp"] = now\n')
+    sh.write('    exit_tag = f"{stage_key.upper()} exit status: 1"\n')
+    sh.write('    if exit_tag in text:\n')
+    sh.write('        s["success"] = False\n')
+    sh.write('    elif re.search(r"Finished\\s+(?:Generating|C synthesis)", text, re.I) or re.search(r"write_bitstream completed successfully", text, re.I):\n')
+    sh.write('        s["success"] = True\n')
+    sh.write('    matches = list(elapsed_re.finditer(text))\n')
+    sh.write('    if matches:\n')
+    sh.write('        m = matches[-1]\n')
+    sh.write('        s["duration_seconds"] = int(m.group(1))*3600 + int(m.group(2))*60 + int(m.group(3))\n')
+    sh.write('parse_log(hls_log, "hls")\n')
+    sh.write('parse_log(hlx_log, "hlx")\n')
+    sh.write('sf.parent.mkdir(parents=True, exist_ok=True)\n')
+    sh.write('sf.write_text(json.dumps(data, indent=2) + "\\n")\n')
+    sh.write('_PYHLSTAT\n')
+
+
+def replace_params_in_file(path: Path, mapping: dict,
+                           patterns: list[tuple[str, str, str]] | None = None):
+    """Replace parameter values in *path* using a priority-ordered pattern list.
+
+    For each parameter the patterns are tried top-to-bottom; the first one that
+    produces at least one substitution wins and the remaining patterns are
+    skipped for that parameter.
+    """
+    if patterns is None:
+        patterns = PARAM_REPLACE_PATTERNS
+
     text = path.read_text()
     new_text = text
     for name, val in mapping.items():
-        # const int NAME = <num>; or int NAME = <num>;
-        pattern = re.compile(r'(\bconst\b\s+\bint\b\s+' + re.escape(name) + r'\s*=\s*)([-+]?\d+)(\s*;)')
-        new_text, count = pattern.subn(lambda m: m.group(1) + str(int(val)) + m.group(3), new_text)
-        if count == 0:
-            pattern2 = re.compile(r'(\bint\b\s+' + re.escape(name) + r'\s*=\s*)([-+]?\d+)(\s*;)')
-            new_text = pattern2.sub(lambda m: m.group(1) + str(int(val)) + m.group(3), new_text)
+        str_val = str(int(val))
+        for _label, regex_tpl, _repl_tpl in patterns:
+            compiled = re.compile(regex_tpl.replace("{NAME}", re.escape(name)))
+            repl = _repl_tpl.replace("{VALUE}", str_val)
+            new_text, count = compiled.subn(repl, new_text)
+            if count > 0:
+                break  # first matching pattern wins for this parameter
     path.write_text(new_text)
 
 
@@ -234,7 +379,7 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
     csv_path = out_root / settings["runs_csv"]
     fieldnames = ["run_id", "run_name", "params", "source_experiment"]
 
-    timestamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.datetime.utcnow().strftime("%y%m%dT%H%M")
 
     run_scripts = []
 
@@ -310,6 +455,7 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write(f'CONFIG_PATH="$HW_GEN_DIR/{settings["hw_config_filename"]}"\n')
                     sh.write(f'MANIFEST_PATH="$HW_GEN_DIR/{settings["manifest_filename"]}"\n')
                     sh.write('mkdir -p "$HW_GEN_DIR"\n\n')
+                    _write_update_status_function(sh, settings["status_filename"])
                     sh.write('RUN_HLS="${RUN_HLS:-1}"\n')
                     sh.write('RUN_HLX="${RUN_HLX:-1}"\n')
                     sh.write('OFFLOAD_HLS_HLX="${OFFLOAD_HLS_HLX:-0}"\n')
@@ -336,6 +482,11 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write('if not isinstance(hg, dict):\n')
                     sh.write('    print("", end="")\n')
                     sh.write('    sys.exit(3)\n')
+                    sh.write('run_id = os.environ.get("RUN_ID", "").strip()\n')
+                    sh.write('acc_name = str(hg.get("acc_name", ""))\n')
+                    sh.write('if run_id:\n')
+                    sh.write('    acc_name = f"{acc_name}_{run_id}" if acc_name else run_id\n')
+                    sh.write('hg["acc_name"] = acc_name\n')
                     sh.write('acc_src = (run_dir / "accelerator").resolve()\n')
                     sh.write('acc_link = (run_dir / "' + settings["hw_gen_dir_name"] + '" / "acc_link").resolve()\n')
                     sh.write('hg["acc_src"] = str(acc_src)\n')
@@ -343,7 +494,7 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write('Path(cfg).parent.mkdir(parents=True, exist_ok=True)\n')
                     sh.write('with open(cfg, "w") as f:\n')
                     sh.write('    json.dump(hg, f, indent=2)\n')
-                    sh.write('acc_tag = f"{hg.get(\'acc_name\')}_{hg.get(\'acc_version\')}_{hg.get(\'acc_sub_version\')}"\n')
+                    sh.write('acc_tag = f"{acc_name}_{hg.get(\'acc_version\')}_{hg.get(\'acc_sub_version\')}"\n')
                     sh.write('print(acc_tag)\n')
                     sh.write('PY\n')
                     sh.write(')\n')
@@ -384,6 +535,8 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write('exp_name = hg.get("del")\n')
                     sh.write('exp_version = f"v{hg.get(\'del_version\')}" if hg.get("del_version") is not None else ""\n')
                     sh.write('acc_name = hg.get("acc_name")\n')
+                    sh.write('if run_id and acc_name:\n')
+                    sh.write('    acc_name = f"{acc_name}_{run_id}"\n')
                     sh.write('acc_version = hg.get("acc_version")\n')
                     sh.write('acc_sub = hg.get("acc_sub_version")\n')
                     sh.write('acc_bit = f"{acc_name}_{acc_version}_{acc_sub}{suffix}.bit"\n')
@@ -443,7 +596,10 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write('  echo "Hardware run script not found: $RUN_HW"\n')
                     sh.write('  exit 1\n')
                     sh.write('fi\n')
+                    sh.write('if [ "$RUN_HLS" -eq 1 ]; then update_status hls attempted; fi\n')
+                    sh.write('if [ "$RUN_HLX" -eq 1 ]; then update_status hlx attempted; fi\n')
                     sh.write('echo "Running Vivado HLS/HLX"\n')
+                    sh.write('HW_START_TIME=$(date +%s)\n')
                     sh.write('run_status=0\n')
                     sh.write('if [ "$DRY_RUN" -eq 1 ]; then\n')
                     sh.write('  echo "DRY-RUN: (cd $HW_GEN_DIR/$ACC_TAG && BITSTREAM_SUFFIX=$BITSTREAM_SUFFIX $RUN_HW $RUN_HLS $RUN_HLX $OFFLOAD_HLS_HLX $COPY_BITS)"\n')
@@ -463,6 +619,7 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write('    fi\n')
                     sh.write('  fi\n')
                     sh.write('done\n')
+                    _write_parse_hls_hlx_status(sh, 'HW_GEN_DIR', 'ACC_TAG')
                     sh.write('if [ "$run_status" -ne 0 ]; then\n')
                     sh.write('  echo "Vivado HLS/HLX failed (status $run_status); copying logs"\n')
                     sh.write(f'  for log in {" ".join(failure_logs)}; do\n')
@@ -506,6 +663,8 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write('  fi\n')
                     sh.write('fi\n')
                     sh.write('echo "Hardware generation completed. Use the run script to execute remote runs."\n')
+                    sh.write('HW_END_TIME=$(date +%s)\n')
+                    sh.write('HW_DURATION=$((HW_END_TIME - HW_START_TIME))\n')
 
                 with run_remote_sh.open('w') as sh:
                     sh.write("#!/usr/bin/env bash\n")
@@ -523,6 +682,7 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write(f'  echo "{settings["repo_root_marker"]} not found; cannot locate repo root"\n')
                     sh.write('  exit 1\n')
                     sh.write('fi\n\n')
+                    _write_update_status_function(sh, settings["status_filename"])
                     sh.write('BOARD_INFO=$(REPO_ROOT="$REPO_ROOT" python3 - <<\'PY\'\n')
                     sh.write('import json, os, shlex\n')
                     sh.write('from pathlib import Path\n')
@@ -541,6 +701,8 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write('exp_name = hg.get("del")\n')
                     sh.write('exp_version = f"v{hg.get(\'del_version\')}" if hg.get("del_version") is not None else ""\n')
                     sh.write('acc_name = hg.get("acc_name")\n')
+                    sh.write('if run_id and acc_name:\n')
+                    sh.write('    acc_name = f"{acc_name}_{run_id}"\n')
                     sh.write('acc_version = hg.get("acc_version")\n')
                     sh.write('acc_sub = hg.get("acc_sub_version")\n')
                     sh.write('acc_bit = f"{acc_name}_{acc_version}_{acc_sub}{suffix}.bit"\n')
@@ -604,10 +766,14 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write('    rsync -q -r -avz -e "ssh -p $BOARD_PORT" "$1" "$BOARD_USER@$BOARD_HOSTNAME:$2"\n')
                     sh.write('  fi\n')
                     sh.write('}\n\n')
+                    sh.write('update_status bazel_build attempted\n')
+                    sh.write('BAZEL_START=$(date +%s)\n')
                     sh.write('echo "Compiling $BAZEL_TARGET for $BOARD_NAME"\n')
+                    sh.write('bazel_ok=1\n')
                     sh.write('if [ "$DRY_RUN" -eq 1 ]; then\n')
                     sh.write('  echo "DRY-RUN: bazel6 build $BAZEL_TARGET ..."\n')
                     sh.write('else\n')
+                    sh.write('  set +e\n')
                     sh.write('  (\n')
                     sh.write('    cd "$REPO_ROOT"\n')
                     sh.write('    if [ "$BOARD_NAME" = "Z1" ]; then\n')
@@ -618,11 +784,18 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write('      bazel6 build "$BAZEL_TARGET" --cxxopt=\'-DACC_PROFILE\' --spawn_strategy=standalone\n')
                     sh.write('    fi\n')
                     sh.write('  )\n')
+                    sh.write('  bazel_ok=$?\n')
+                    sh.write('  set -e\n')
                     sh.write('fi\n')
-                    sh.write('if [ ! -f "$BIN_PATH" ]; then\n')
-                    sh.write('  echo "Binary not found: $BIN_PATH"\n')
+                    sh.write('BAZEL_END=$(date +%s)\n')
+                    sh.write('BAZEL_DUR=$((BAZEL_END - BAZEL_START))\n')
+                    sh.write('update_status bazel_build duration "$BAZEL_DUR"\n')
+                    sh.write('if [ "$bazel_ok" -ne 0 ] || [ ! -f "$BIN_PATH" ]; then\n')
+                    sh.write('  update_status bazel_build failure "${bazel_ok}"\n')
+                    sh.write('  echo "Binary not found or build failed: $BIN_PATH"\n')
                     sh.write('  exit 1\n')
-                    sh.write('fi\n\n')
+                    sh.write('fi\n')
+                    sh.write('update_status bazel_build success 0\n\n')
                     sh.write('echo "Preparing remote directories"\n')
                     sh.write('remote_exec "mkdir -p $REMOTE_EXP_DIR/bins $REMOTE_EXP_DIR/bitstreams $REMOTE_EXP_DIR/exp $REMOTE_EXP_DIR/data $REMOTE_EXP_DIR/models"\n')
                     sh.write(f'remote_rsync "$REPO_ROOT/{settings["load_bitstream_script"]}" "$REMOTE_EXP_DIR/"\n')
@@ -640,16 +813,29 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
                     sh.write('else\n')
                     sh.write('  remote_exec "cd $REMOTE_EXP_DIR/bitstreams && sudo python3 $REMOTE_EXP_DIR/load_bitstream.py $ACC_BIT"\n')
                     sh.write('fi\n')
+                    sh.write('update_status remote_run attempted\n')
+                    sh.write('REMOTE_START=$(date +%s)\n')
                     sh.write(f'RUN_LOG="$RESULTS_DIR/{settings["run_log_name"].format(run_id="${RUN_ID}")}"\n')
                     sh.write('RUN_TS="$(date +%Y_%m_%d_%H_%M_%S)"\n')
                     sh.write('REMOTE_LOG="$REMOTE_EXP_DIR/exp/${BIN_NAME}_${RUN_TS}.log"\n')
+                    sh.write('set +e\n')
                     sh.write('remote_exec "mkdir -p $REMOTE_EXP_DIR/exp && cd $REMOTE_EXP_DIR && sudo chmod +x ./bins/$BIN_NAME && sudo ./bins/$BIN_NAME 2>&1 | tee $REMOTE_LOG" | tee "$RUN_LOG"\n')
+                    sh.write('remote_status=$?\n')
+                    sh.write('set -e\n')
                     sh.write('echo "Summary: run_id=$RUN_ID board=$BOARD_NAME bin=$BIN_NAME" | tee -a "$RUN_LOG"\n')
                     sh.write('echo "Summary: log=$RUN_LOG" | tee -a "$RUN_LOG"\n')
                     sh.write('if [ "$DRY_RUN" -eq 1 ]; then\n')
                     sh.write('  echo "DRY-RUN: rsync -e ssh -p $BOARD_PORT $BOARD_USER@$BOARD_HOSTNAME:$REMOTE_LOG $RESULTS_DIR/"\n')
                     sh.write('else\n')
                     sh.write('  rsync -q -avz -e "ssh -p $BOARD_PORT" "$BOARD_USER@$BOARD_HOSTNAME:$REMOTE_LOG" "$RESULTS_DIR/"\n')
+                    sh.write('fi\n')
+                    sh.write('REMOTE_END=$(date +%s)\n')
+                    sh.write('REMOTE_DUR=$((REMOTE_END - REMOTE_START))\n')
+                    sh.write('update_status remote_run duration "$REMOTE_DUR"\n')
+                    sh.write('if [ "$remote_status" -ne 0 ]; then\n')
+                    sh.write('  update_status remote_run failure "$remote_status"\n')
+                    sh.write('else\n')
+                    sh.write('  update_status remote_run success 0\n')
                     sh.write('fi\n')
                 run_sh.chmod(0o755)
                 run_remote_sh.chmod(0o755)
@@ -847,6 +1033,10 @@ def generate_runs(source_exp: Path, hw_json: Path, out_root: Path, settings: dic
 
 def main():
 
+    # Remember the caller's working directory so relative CLI paths are resolved
+    # against it, even after we os.chdir into the DSE_Explorer directory.
+    orig_cwd = Path.cwd().resolve()
+
     abspath = os.path.abspath(__file__)
     dname = os.path.dirname(abspath)
     os.chdir(dname)
@@ -856,6 +1046,9 @@ def main():
 
     default_settings_path = Path(__file__).resolve().parent / "dse_setting.json"
     settings_path = Path(known.settings) if known.settings else default_settings_path
+    # Resolve --settings relative to original cwd if it was user-provided
+    if known.settings:
+        settings_path = (orig_cwd / settings_path).resolve()
     settings = load_settings(settings_path)
 
     p = argparse.ArgumentParser(parents=[pre])
@@ -867,12 +1060,17 @@ def main():
     p.add_argument('--sample', type=int, default=0, help='If >0, limit to this many runs (deterministic sampling)')
     args = p.parse_args()
 
+    # Resolve user-provided relative paths against the original working directory
     source_exp = Path(args.experiment)
+    if not source_exp.is_absolute():
+        source_exp = (orig_cwd / source_exp).resolve()
     if not source_exp.exists():
         raise FileNotFoundError(f"Experiment path not found: {source_exp}")
 
     hw_params_name = settings["hw_params_filename"]
     hw_json = Path(args.hw) if args.hw else source_exp / hw_params_name
+    if args.hw and not hw_json.is_absolute():
+        hw_json = (orig_cwd / hw_json).resolve()
     if not hw_json.exists():
         # try recursive find
         found = list(source_exp.rglob(hw_params_name))
@@ -881,7 +1079,10 @@ def main():
         hw_json = found[0]
 
     exp_folder = format_experiment_folder(source_exp, settings["experiment_folder_format"])
-    out_root = (Path(args.output) / exp_folder).resolve()
+    out_path = Path(args.output)
+    if not out_path.is_absolute():
+        out_path = (orig_cwd / out_path).resolve()
+    out_root = (out_path / exp_folder).resolve()
     generate_runs(source_exp, hw_json, out_root, settings, dry_run=args.dry_run, sample=args.sample)
     if not args.dry_run:
         rewrite_build_deps_for_runs(out_root, source_exp, settings)

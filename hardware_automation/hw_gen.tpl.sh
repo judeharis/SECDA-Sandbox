@@ -70,11 +70,11 @@ updateAXIMM_ports() {
 
 send_pushbullet_notification() {
   local message="$1"
-  # curl -s -o /dev/null --header 'Access-Token: &{pb_token}' \
-  #   --header 'Content-Type: application/json' \
-  #   --data-binary "{\"body\":\"${message}\",\"title\":\"&{acc_tag}\",\"type\":\"note\"}" \
-  #   --request POST \
-  #   https://api.pushbullet.com/v2/pushes
+  curl -s -o /dev/null --header 'Access-Token: &{pb_token}' \
+    --header 'Content-Type: application/json' \
+    --data-binary "{\"body\":\"${message}\",\"title\":\"&{acc_tag}\",\"type\":\"note\"}" \
+    --request POST \
+    https://api.pushbullet.com/v2/pushes
   push=$?
   echo "Pushbullet response: $push"
 }
@@ -232,5 +232,6 @@ echo ""
 echo "HLS runtime: $(($hls_runtime / 60)):$(($hls_runtime % 60)) mins"
 echo "HLX runtime: $(($hlx_runtime / 60)):$(($hlx_runtime % 60)) mins"
 echo "Run runtime: $(($run_runtime/1000)) ms"
-
+send_pushbullet_notification "HLS runtime: $(($hls_runtime / 60)):$(($hls_runtime % 60)) mins, HLX runtime: $(($hlx_runtime / 60)):$(($hlx_runtime % 60)) mins, Run runtime: $(($run_runtime/1000)) ms"
+echo "HLS runtime: $(($hls_runtime / 60)):$(($hls_runtime % 60)) mins, HLX runtime: $(($hlx_runtime / 60)):$(($hlx_runtime % 60)) mins, Run runtime: $(($run_runtime/1000)) ms" >> status.txt
 popd

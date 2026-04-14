@@ -36,14 +36,34 @@
       "hlx_version": "2024"
     }
   },
-  "remote_server": {
-    "gateway": "-J jharis@sibu.dcs.gla.ac.uk",
-    "server_user": "jude",
-    "server_hostname": "gabriel.dcs.gla.ac.uk",
-    "server_port": 22,
-    "server_dir": "/home/jude/Workspace/remote/SECDA-TFLite/hardware_automation_remote/",
-    "server_2019_path": "/data/Xilinx2019/Vivado/2019.2/bin/",
-    "server_2024_path": "/data/Xilinx2024/Vivado/2024.1/bin/"
+  "remote_servers": {
+    "gabriel": {
+      "gateway": "-J jharis@sibu.dcs.gla.ac.uk",
+      "server_user": "jude",
+      "server_hostname": "gabriel.dcs.gla.ac.uk",
+      "server_port": 22,
+      "server_dir": "/home/jude/Workspace/remote/SECDA-TFLite/hardware_automation_remote/",
+      "server_2019_path": "/data/Xilinx2019/Vivado/2019.2/bin/",
+      "server_2024_path": "/data/Xilinx2024/Vivado/2024.1/bin/"
+    },
+    "pate": {
+      "gateway": "-J jharis@sibu.dcs.gla.ac.uk",
+      "server_user": "jharis",
+      "server_hostname": "pate.dcs.gla.ac.uk",
+      "server_port": 22,
+      "server_dir": "/home/jharis/Workspace/remote/SECDA-TFLite/hardware_automation_remote/",
+      "server_2019_path": "/opt/Xilinx2019/Vivado/2019.2/bin/",
+      "server_2024_path": "/opt/Xilinx2024/Vivado/2024.1/bin/"
+    },
+    "bruny": {
+      "gateway": "-J jharis@ssh1.dcs.gla.ac.uk",
+      "server_user": "jharis",
+      "server_hostname": "bruny.dcs.gla.ac.uk",
+      "server_port": 22,
+      "server_dir": "/home/jharis/Workspace/remote/SECDA/hardware_automation_remote/",
+      "server_2019_path": "/home/jharis/Xilinx2019/Vivado/2019.2/bin/",
+      "server_2024_path": "/home/jharis/Xilinx2024/Vivado/2024.1/bin/"
+    }
   },
   "push_bullet_token": "o.eIEuBUZBIooNKzofTc6WATcyobjqK4TD",
   "data_dir": "/home/jude/Workspace/SECDA-TFLite_v2/data",

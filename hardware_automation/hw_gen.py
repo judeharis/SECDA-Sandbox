@@ -93,15 +93,52 @@ class hardware_exp:
         self.vp = (self.sc["vivado_2024_path"]
             if self.bconfig["hlx_version"] == "2024"
             else self.sc["vivado_2019_path"])
-
-        self.svp_hls = sc["remote_server"]["server_2019_path"]
-        self.svp_hlx = (
-            sc["remote_server"]["server_2024_path"]
-            if self.bconfig["hlx_version"] == "2024"
-            else sc["remote_server"]["server_2019_path"]
+        remote_server = config.get("remote_server", None)
+        multi_server = (
+            True if sc["remote_servers"] and len(sc["remote_servers"]) > 0 else False
         )
+        if multi_server:
+            if remote_server in sc["remote_servers"]:
+                self.svp_hls = sc["remote_servers"][remote_server]["server_2019_path"]
+                self.svp_hlx = (
+                    sc["remote_servers"][remote_server]["server_2024_path"]
+                    if self.bconfig["hlx_version"] == "2024"
+                    else sc["remote_servers"][remote_server]["server_2019_path"]
+                )
+                self.gateway = sc["remote_servers"][remote_server]["gateway"]
+                self.re_server_user = sc["remote_servers"][remote_server]["server_user"]
+                self.re_server_hostname = sc["remote_servers"][remote_server]["server_hostname"]
+                self.re_server_port = sc["remote_servers"][remote_server]["server_port"]
+                self.re_server_dir = sc["remote_servers"][remote_server]["server_dir"]
+            else:
+                self.svp_hls = self.sc["vivado_2019_path"]
+                self.svp_hlx = self.sc["vivado_2024_path"]
+                self.gateway = ""
+                self.re_server_user = ""
+                self.re_server_hostname = ""
+                self.re_server_port = ""
+                self.re_server_dir = ""
+        elif "remote_server" in sc:
+            self.svp_hls = sc["remote_server"]["server_2019_path"]
+            self.svp_hlx = (
+                sc["remote_server"]["server_2024_path"]
+                if self.bconfig["hlx_version"] == "2024"
+                else sc["remote_server"]["server_2019_path"]
+            )
+            self.gateway = sc["remote_server"]["gateway"]
+            self.re_server_user = sc["remote_server"]["server_user"]
+            self.re_server_hostname = sc["remote_server"]["server_hostname"]
+            self.re_server_port = sc["remote_server"]["server_port"]
+            self.re_server_dir = sc["remote_server"]["server_dir"]
+        else:
+            self.svp_hls = self.sc["vivado_2019_path"]
+            self.svp_hlx = self.sc["vivado_2024_path"]
+            self.gateway = ""
+            self.re_server_user = ""
+            self.re_server_hostname = ""
+            self.re_server_port = ""
+            self.re_server_dir = ""
 
-        self.gateway = sc["remote_server"]["gateway"]
 
         # accelerator stuff
         self.acc_name = config["acc_name"]
@@ -111,9 +148,7 @@ class hardware_exp:
         if os.path.isabs(acc_link_folder):
             self.acc_link_folder = os.path.abspath(acc_link_folder)
         else:
-            self.acc_link_folder = os.path.abspath(
-                self.hw_link_dir + acc_link_folder
-            )
+            self.acc_link_folder = os.path.abspath(self.hw_link_dir + acc_link_folder)
 
         # hardware stuff
         self.fpga_part = self.bconfig["fpga_part"]
@@ -195,10 +230,14 @@ class hardware_exp:
             "hlx_version": self.bconfig["hlx_version"],
             "svp_hls": self.svp_hls,
             "svp_hlx": self.svp_hlx,
-            "server_user": self.sc["remote_server"]["server_user"],
-            "server_hostname": self.sc["remote_server"]["server_hostname"],
-            "server_port": self.sc["remote_server"]["server_port"],
-            "server_dir": self.sc["remote_server"]["server_dir"],
+            # "server_user": self.sc["remote_server"]["server_user"],
+            # "server_hostname": self.sc["remote_server"]["server_hostname"],
+            # "server_port": self.sc["remote_server"]["server_port"],
+            # "server_dir": self.sc["remote_server"]["server_dir"],
+            "server_user": self.re_server_user,
+            "server_hostname": self.re_server_hostname,
+            "server_port": self.re_server_port,
+            "server_dir": self.re_server_dir,
             "gateway": self.gateway,
             "pb_token": self.sc["push_bullet_token"],
             "stderr": "2>&1",
@@ -254,9 +293,7 @@ def process_hw_config(hw_config_file):
     if os.path.isabs(acc_src):
         acc_src_dir = acc_src
     else:
-        acc_src_dir = (
-            f"{sc['secda_init_path']}/{sc['path_to_solutions']}/{acc_src}/"
-        )
+        acc_src_dir = f"{sc['secda_init_path']}/{sc['path_to_solutions']}/{acc_src}/"
     for file in os.listdir(acc_src_dir):
         if file.endswith(".cc") or file.endswith(".h"):
             source = os.path.abspath(os.path.join(acc_src_dir, file))
@@ -267,9 +304,7 @@ def process_hw_config(hw_config_file):
     sysc_hw_utils_path = (
         f"{sc['secda_tools_path']}/secda_integrator/secda_hw_utils.sc.h"
     )
-    sysc_hwc_path = (
-        f"{sc['secda_tools_path']}/secda_integrator/hwc.sc.h"
-    )
+    sysc_hwc_path = f"{sc['secda_tools_path']}/secda_integrator/hwc.sc.h"
     os.system(f"ln -sf {sysc_types_path} {target}")
     os.system(f"ln -sf {sysc_hw_utils_path} {target}")
     os.system(f"ln -sf {sysc_hwc_path} {target}")

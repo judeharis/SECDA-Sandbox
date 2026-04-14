@@ -1,5 +1,5 @@
 {
-  "output_root": "generated",
+  "output_root": "DSE_Explorer/generated",
   "experiment_folder_format": "{exp_name}_{exp_version}",
   "runs_csv": "runs.csv",
   "hw_params_filename": "hw_params.json",
@@ -34,5 +34,6 @@
     "outputHLS.log",
     "outputHLX.log"
   ],
-  "artifact_suffix_format": "_{run_id}"
+  "artifact_suffix_format": "_{run_id}",
+  "status_filename": "status.json"
 }
