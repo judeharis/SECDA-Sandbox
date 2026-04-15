@@ -29,7 +29,7 @@ struct acc_times {
   duration_ns fpga_total;
   duration_ns cpu_total;
   duration_ns driver;
-  duration_ns recv_cycles
+  duration_ns recv_cycles;
 
   void print() {
 #ifdef ACC_PROFILE

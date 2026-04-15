@@ -10,7 +10,7 @@
   "manifest_filename": "manifest.json",
   "config_json": "config.json",
   "hw_gen_script": "hardware_automation/hw_gen.py",
-  "load_bitstream_script": "exp_gen_suite/scripts/load_bitstream.py",
+  "load_bitstream_script": "Exp_Suite/scripts/load_bitstream.py",
   "run_log_name": "run_remote_{run_id}.log",
   "hw_gen_script_template": "hw_gen_{run_id}.sh",
   "run_script_template": "run_{run_id}.sh",
