@@ -92,13 +92,19 @@ def parse_log(path: Path) -> Dict[str, str]:
     return metrics
 
 
-def collect_run_metrics(run_dir: Path) -> Dict[str, str]:
+def collect_run_metrics(run_dir: Path, sim_mode: bool = False) -> Dict[str, str]:
     metrics: Dict[str, str] = {"run_id": run_dir.name, "fpga_total": "0"}
     results_dir = run_dir / "results"
     if not results_dir.exists():
         return metrics
 
-    log_files = sorted(results_dir.glob("*.log"))
+    if sim_mode:
+        log_files = sorted(results_dir.glob("*_sim.log"))
+    else:
+        log_files = sorted(
+            path for path in results_dir.glob("*.log") if not path.name.endswith("_sim.log")
+        )
+
     if not log_files:
         return metrics
 
@@ -141,23 +147,40 @@ def main() -> None:
     if not runs_dir.exists():
         raise SystemExit(f"Runs directory not found: {runs_dir}")
 
-    rows = [
-        collect_run_metrics(run_dir)
+    run_dirs = [
+        run_dir
         for run_dir in sorted(runs_dir.iterdir())
         if run_dir.is_dir()
     ]
-    if not rows:
+    if not run_dirs:
         raise SystemExit(f"No runs found under {runs_dir}")
 
-    output_path = args.output or (dataset_dir / "performance_summary.csv")
-    fieldnames = all_metric_keys(rows)
+    std_rows = [collect_run_metrics(run_dir, sim_mode=False) for run_dir in run_dirs]
+    sim_rows = [collect_run_metrics(run_dir, sim_mode=True) for run_dir in run_dirs]
 
-    with output_path.open("w", newline="") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    std_has_logs = any("log_file" in row for row in std_rows)
+    sim_has_logs = any("log_file" in row for row in sim_rows)
 
-    print(f"Wrote {output_path}")
+    if not std_has_logs and not sim_has_logs:
+        raise SystemExit(f"No .log files found under {runs_dir}")
+
+    if std_has_logs:
+        output_path = args.output or (dataset_dir / "performance_summary.csv")
+        fieldnames = all_metric_keys(std_rows)
+        with output_path.open("w", newline="") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(std_rows)
+        print(f"Wrote {output_path}")
+
+    if sim_has_logs:
+        sim_output_path = dataset_dir / "sim_performance_summary.csv"
+        sim_fieldnames = all_metric_keys(sim_rows)
+        with sim_output_path.open("w", newline="") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=sim_fieldnames)
+            writer.writeheader()
+            writer.writerows(sim_rows)
+        print(f"Wrote {sim_output_path}")
 
 
 if __name__ == "__main__":
