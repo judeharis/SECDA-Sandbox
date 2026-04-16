@@ -37,23 +37,29 @@
 // KRIA
 // Pre-Defined Address for Accelerator
 #define acc_ctrl_address 0xA0000000
-#define acc_hwc_address 0xA0020000
-
-#define acc_address 0x00A0000000
-#define dma_addr0 0xA0010000
-#define dma_in0 0x3A000000
-#define dma_out0 0x38000000
+#define acc_hwc_address 0xA0050000
+#define dma_addr0 0x00A0010000
+#define dma_addr1 0x00A0020000
+#define dma_addr2 0x00A0030000
+#define dma_addr3 0x00A0040000
 
 #define DMA_BL 4194304
 #define DMA_RANGE_START 0x0000000037400000
 #define DMA_RANGE_END 0x00000000773FFFFF
-#define DMA_RANGE_OFFSET 0xC00000 // 1.5MB
-#define DMA_RANGE_SIZE 0x40000000 // 1GB
+#define DMA_RANGE_OFFSET 0xC00000         // 1.5MB
+#define DMA_RANGE_SIZE 0x0000000040000000 // 1GB
+#define DMA_IN_BUF_SIZE 0x8000000         // 128MB
+#define DMA_OUT_BUF_SIZE 0x4000000        // 64MB
 
-#define DMA_IN_BUF_SIZE 0x3F000000 // 1GB - 16MB
-#define DMA_OUT_BUF_SIZE 0x0800000 // 8MB
-#define DMA_INP_SIZE 0x100000
-#define DMA_WGT_SIZE (DMA_IN_BUF_SIZE - DMA_INP_SIZE)
+#define dma_in0 0x38000000
+#define dma_in1 0x3A000000
+#define dma_in2 0x3C000000
+#define dma_in3 0x3E000000
+
+#define dma_out0 0x39000000
+#define dma_out1 0x3B000000
+#define dma_out2 0x3D000000
+#define dma_out3 0x40000000
 #else
 // Z1
 // Pre-Defined Address for Accelerator

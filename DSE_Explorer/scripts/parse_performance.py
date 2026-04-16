@@ -93,7 +93,7 @@ def parse_log(path: Path) -> Dict[str, str]:
 
 
 def collect_run_metrics(run_dir: Path) -> Dict[str, str]:
-    metrics: Dict[str, str] = {"run_id": run_dir.name}
+    metrics: Dict[str, str] = {"run_id": run_dir.name, "fpga_total": "0"}
     results_dir = run_dir / "results"
     if not results_dir.exists():
         return metrics
@@ -109,7 +109,7 @@ def collect_run_metrics(run_dir: Path) -> Dict[str, str]:
 
 
 def all_metric_keys(rows: Iterable[Dict[str, str]]) -> list[str]:
-    keys = {"run_id", "log_file"}
+    keys = {"run_id", "log_file", "fpga_total"}
     for row in rows:
         keys.update(row.keys())
     ordered = ["run_id", "log_file"] + sorted(

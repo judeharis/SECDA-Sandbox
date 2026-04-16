@@ -26,3 +26,4 @@ experiments/dma_exp
 experiments/dummy_exp
 
 hardware_automation/bitstreams
+goal.md
