@@ -192,7 +192,7 @@ def _write_hw_gen_prelude(sh, settings: dict, run_id: str, run_name: str, failur
         'RUN_HLX="${RUN_HLX:-1}"\n',
         'OFFLOAD_HLS_HLX="${OFFLOAD_HLS_HLX:-0}"\n',
         'COPY_BITS="${COPY_BITS:-1}"\n',
-        'FORCE_HW_GEN="${FORCE_HW_GEN:-0}"\n',
+        'FORCE_HW_GEN="1"\n',
         'DRY_RUN="${DRY_RUN:-0}"\n',
         f'BITSTREAM_SUFFIX="${{BITSTREAM_SUFFIX:-{suffix}}}"\n',
         'if [ $# -ge 1 ]; then RUN_HLS="$1"; fi\n',
@@ -258,15 +258,11 @@ def _write_hw_gen_config_section(sh, settings: dict, run_id: str, run_name: str)
 
 def _write_hw_gen_execution_section(sh, settings: dict, failure_logs: list[str]) -> None:
     _write_lines(sh, [
-        'if [ -d "$HW_GEN_DIR/$ACC_TAG" ] && [ "$FORCE_HW_GEN" -ne 1 ]; then\n',
-        '  echo "hardware_gen exists; skipping hw_gen.py (set FORCE_HW_GEN=1 to regenerate)"\n',
+        'echo "Generating hardware project in $HW_GEN_DIR"\n',
+        'if [ "$DRY_RUN" -eq 1 ]; then\n',
+        f'  echo "DRY-RUN: SECDA_OUT_DIR=$HW_GEN_DIR python3 $REPO_ROOT/{settings["hw_gen_script"]} $CONFIG_PATH"\n',
         'else\n',
-        '  echo "Generating hardware project in $HW_GEN_DIR"\n',
-        '  if [ "$DRY_RUN" -eq 1 ]; then\n',
-        f'    echo "DRY-RUN: SECDA_OUT_DIR=$HW_GEN_DIR python3 $REPO_ROOT/{settings["hw_gen_script"]} $CONFIG_PATH"\n',
-        '  else\n',
-        f'    SECDA_OUT_DIR="$HW_GEN_DIR" python3 "$REPO_ROOT/{settings["hw_gen_script"]}" "$CONFIG_PATH"\n',
-        '  fi\n',
+        f'  SECDA_OUT_DIR="$HW_GEN_DIR" python3 "$REPO_ROOT/{settings["hw_gen_script"]}" "$CONFIG_PATH"\n',
         'fi\n\n',
         'RUN_HW="$HW_GEN_DIR/$ACC_TAG/run.sh"\n',
         'if [ ! -x "$RUN_HW" ]; then\n',
