@@ -27,3 +27,9 @@ experiments/dummy_exp
 
 hardware_automation/bitstreams
 goal.md
+
+Accel_Standard/
+Exp_Suite/
+# SECDA-DSE/input_space/*
+# SECDA-DSE/llm_experiments/*
+SECDA-DSE/llm_generated/*

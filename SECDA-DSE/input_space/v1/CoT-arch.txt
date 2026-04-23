@@ -1,0 +1,151 @@
+SECDA-DSE “CoT” Generation Prompt — Arch-Base Conv2D (SECDA-native)
+===================================================================
+
+You are generating a SECDA-native accelerator project that MUST follow the proven template structure from `SECDA-DSE/KEY_CONTEXT.txt` and `dataset/runs/0001..0005`.
+
+IMPORTANT: Output must be a complete file tree (not snippets), and the result must be runnable as a standalone SECDA-native experiment (host harness + driver + SystemC accelerator).
+
+This is NOT a request for hidden chain-of-thought. This is a strict, explicit generation spec.
+
+
+--------------------------------------------------------------------
+0) Target folder and output shape (MUST MATCH)
+--------------------------------------------------------------------
+Write generated files under:
+
+  experiments/Acc-2/v1/
+
+The structure must be exactly:
+
+  experiments/Acc-2/v1/
+  ├── experiment.cc
+  ├── hw_params.json
+  ├── BUILD
+  └── accelerator/
+      ├── BUILD
+      ├── acc_config.sc.h
+      ├── acc.sc.h
+      ├── acc.sc.cc
+      ├── compute.sc.h
+      ├── hwc.sc.h
+      └── driver/
+          ├── BUILD
+          ├── acc_container.h
+          ├── driver.h
+          └── systemc_binding.h
+
+All includes must be consistent with this local folder structure (e.g., experiment.cc includes "accelerator/driver/driver.h").
+
+
+--------------------------------------------------------------------
+1) Accelerator semantics (MUST IMPLEMENT)
+--------------------------------------------------------------------
+Operation: Conv2D
+
+Fixed tensor layouts (MUST FOLLOW EXACTLY):
+- Weights W: order (IC, OC, KW, KH)
+- Input   X: order (IC, IW, IH)
+- Output  Z: order (OC, OW, OH)
+
+Convolution hyperparameters are fixed:
+- padding = 0
+- stride  = 1
+- dilation= 1
+
+Derived output dims:
+- OW = IW - KW + 1
+- OH = IH - KH + 1
+
+The accelerator must:
+- Load W and X into on-chip buffers
+- Compute Z via convolution and store into Z buffer
+- Stream Z out to the output AXI-Stream
+
+Module structure must follow the SECDA-native template:
+- Recv (load module)
+- Compute (compute module)
+- Send (store module)
+
+The driver must:
+- Encode an opcode + code_extension header
+- Stream W payload then X payload into DMA input buffer
+- Receive Z payload from DMA output buffer
+
+
+--------------------------------------------------------------------
+2) SECDA-native invariants (MUST KEEP)
+--------------------------------------------------------------------
+Follow the invariants from `SECDA-DSE/KEY_CONTEXT.txt`:
+- Use the same SECDA-native pattern: host harness → driver → SystemC Recv/Compute/Send.
+- Keep opcode protocol consistent between driver and Recv().
+- Keep TLAST asserted on the final output element.
+- Keep “parallel execution” bounded by explicit knobs (do not blindly unroll by entire tensor sizes).
+
+Bounded parallelism rule:
+- Provide OC_UNROLL and IC_UNROLL knobs.
+- Ensure OC_UNROLL <= OC and IC_UNROLL <= IC.
+- Prefer pipelining (II=1) plus bounded unrolling (like dataset DSE lessons: avoid over-utilization).
+
+CRITICAL (do not miss these, or SystemC/native wiring breaks):
+- `accelerator/hwc.sc.h` MUST provide the HWC macro set used by the proven template, including:
+  - `HWC_Reset`, `HWC_PragReset`, `HWC_PragGroup`, `HWC_CTHREAD`, `HWC_Logic`
+  - `HWC_Define_Reset`, `HWC_Define_Signals`, `HWC_Bind_Reset`, `HWC_Bind_Signals`
+- `accelerator/driver/systemc_binding.h` MUST define the SystemC-side signals required by those macros:
+  - `HWC_Define_Reset;`
+  - `HWC_Define_Signals(Recv); HWC_Define_Signals(Compute); HWC_Define_Signals(Send);`
+  - and must bind them in `sysC_binder` using `HWC_Bind_Reset;` and `HWC_Bind_Signals(...)`.
+- In `compute.sc.h`, do NOT use any undefined macro like `HWC_SIG(...)`.
+  - Use the proven pattern: `Recv_si.write(state)` / `Compute_si.write(state)` / `Send_si.write(state)` where those are the HWC “si” signals created by `HWC_CTHREAD(name)`.
+
+CRITICAL (protocol/header consistency):
+- The driver must send a fixed, deterministic header layout, and Recv() must parse the exact same layout in the same order.
+- If you choose fixed-dimension conv (dims baked in acc_config):
+  - Still send ONE dummy code-extension word after the opcode for protocol compatibility.
+  - Recv() must read and ignore that dummy word.
+
+
+--------------------------------------------------------------------
+3) Fixed parameters to bake into the design (DEFAULTS)
+--------------------------------------------------------------------
+Because the prompt does not specify concrete numbers, bake in safe defaults that compile/run:
+- IC=8, OC=8, KW=3, KH=3, IW=16, IH=16
+- OW and OH computed from formulas
+
+All dimensions must be constants in `accelerator/acc_config.sc.h`.
+
+
+--------------------------------------------------------------------
+4) Correctness and test harness requirements
+--------------------------------------------------------------------
+experiment.cc must:
+- Allocate W, X, Z arrays according to the exact layout orders above
+- Initialize them deterministically (e.g., all ones)
+- Run the accelerator via driver
+- Validate Z against a CPU reference conv2d implementation using the same layout and hyperparams
+
+
+--------------------------------------------------------------------
+5) Build metadata and realism constraints
+--------------------------------------------------------------------
+- Provide `hw_params.json` consistent with SECDA flows (board=Z1, hls_clock=5ns, 200MHz).
+- `hw_params.json` MUST include both:
+  - a top-level `hardware_gen` block (required for generation/build scripts)
+  - a top-level `DSE` block (same structural shape as vmul_exp), even if you only include a minimal parameter sweep set.
+- CRITICAL (DSE Explorer compatibility — do not break):
+  - In `DSE.groups`, parameters listed in the same group are treated as a *zipped tuple* by `DSE_Explorer`.
+  - Therefore, every parameter list referenced by the same group MUST have the **same length**.
+    - Example: if group 2 is `["IC","OC","KW","KH","IW","IH"]` and IC/OC have 5 values, then KW/KH/IW/IH MUST also have 5 values.
+  - If you want independent combinations, put parameters into different groups instead of one group.
+  - Safe default for the conv2d-dims group (length 5 everywhere) is:
+    - IC: [1, 2, 4, 8, 16]
+    - OC: [1, 2, 4, 8, 16]
+    - KW: [1, 1, 3, 3, 5]
+    - KH: [1, 1, 3, 3, 5]
+    - IW: [8, 8, 16, 16, 32]
+    - IH: [8, 8, 16, 16, 32]
+- Provide BUILD files consistent with being placed under `experiments/Acc-2/v1`.
+
+NOTE about AXI-Stream interfaces:
+- The existing SECDA-native dataset template uses a single AXI4-Stream port pair (din1/dout1) wired to one DMA channel.
+- Implement two *logical* loads (W then X) over this stream while keeping the native template runnable with common single-DMA scripts.
+

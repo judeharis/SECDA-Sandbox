@@ -1,0 +1,16 @@
+I would like to create a hardware accelerator design.
+The accelerator should be able to take two input matrix: one for weights and another for inputs.
+The weights have the dimensions in follow data order: input channels (IC), output channels (OC), kernel width (KW) and then kernel height (KH) .
+The input matrix has the dimensions in follow data order: input channels (IC), input width (IW) and then input height (IH).
+The output matrix has the dimensions in follow data order: output channels (OC), output width (OW) and then output height (OH).
+We assume padding is 0 and stride is 1 and dilation is 1 for the convolution operation.
+So the output width (OW) and output height (OH) can be calculated as follows:
+OW = IW - KW + 1
+OH = IH - KH + 1
+The accelerator should perform convolution operation and produce a output matrix Z.
+The accelerator has two AXI-Stream based interfaces for loading weights and inputs into custom weights and inputs buffers.
+All dimension are fixed and defined as parameters in the accelerator design.
+Once the data is loaded, the accelerator should be abe to execute the CONV operation in parrallel and save it in buffer Z, within the compute module.
+The loading should be done with load module.
+And finally the storing of the results back to main memory should be done in the store module which writes to an output AXI-Stream.
+Create the accelerator description using SystemC and SECDA.

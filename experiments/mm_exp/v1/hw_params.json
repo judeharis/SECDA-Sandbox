@@ -18,12 +18,12 @@
         ]
     },
     "hardware_gen": {
-        "acc_name": "MM_EXP_Z1",
+        "acc_name": "MM_EXP_KRIA",
         "acc_version": 1,
         "acc_sub_version": 0,
         "acc_src": "mm_exp/v1/accelerator",
         "acc_link_folder": "mm_exp_src_v1",
-        "hlx_tcl_script": "Z1/Z1_dma_1_hp_1_ctrl_hwc.tcl",
+        "hlx_tcl_script": "KRIA/KRIA_dma_1_hp_1_ctrl_hwc.tcl",
         "top": "MM_ACC",
         "del": "mm_exp",
         "del_version": "1",
@@ -31,6 +31,6 @@
         "hlx_Mhz": "200",
         "axi_bitW": "32",
         "axi_burstS": "32",
-        "board": "Z1"
+        "board": "KRIA"
     }
 }
