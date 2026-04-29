@@ -40,6 +40,7 @@ Upgrade Plan 2 status tracking files:
 
 ```bash
 python3 dse_run.py --experiment <path> [options]
+tmux attach -t dse-monitor
 ```
 
 ### Required Argument

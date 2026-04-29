@@ -714,10 +714,34 @@ def get_timeout(enable_timeouts: bool, value: int) -> int | None:
     return value if value > 0 else None
 
 
+class _TeeWriter:
+    """Writes to both a stream and a file, used to tee stdout/stderr to a log."""
+
+    def __init__(self, stream: object, log_path: Path) -> None:
+        self._stream = stream
+        self._log = log_path.open("a", buffering=1)
+
+    def write(self, data: str) -> int:
+        self._stream.write(data)  # type: ignore[attr-defined]
+        self._log.write(data)
+        return len(data)
+
+    def flush(self) -> None:
+        self._stream.flush()  # type: ignore[attr-defined]
+        self._log.flush()
+
+    def fileno(self) -> int:
+        return self._stream.fileno()  # type: ignore[attr-defined]
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._stream, name)
+
+
 def launch_status_monitor_terminal(
     repo_root: Path,
     project_status_file: Path,
     watch_interval: float,
+    outstream_log: Path | None = None,
 ) -> tuple[bool, str | None]:
     monitor_script = repo_root / "DSE_Explorer" / "scripts" / "project_status_monitor.py"
     if not monitor_script.exists():
@@ -733,30 +757,46 @@ def launch_status_monitor_terminal(
     ]
     monitor_cmd_text = " ".join(shlex.quote(part) for part in monitor_cmd)
 
-    if os.environ.get("TMUX") and shutil.which("tmux"):
+    tmux = shutil.which("tmux")
+    if tmux:
+        session = "dse-monitor"
         try:
-            subprocess.Popen(["tmux", "split-window", "-h", monitor_cmd_text], cwd=str(repo_root))
-            return True, None
-        except OSError:
+            # Kill any stale session so the layout is always fresh.
+            subprocess.run(
+                [tmux, "kill-session", "-t", session],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            # Create a new detached session; the first pane shows the outstream log.
+            if outstream_log is not None:
+                left_cmd = f"tail -n +1 -f {shlex.quote(str(outstream_log))}"
+            else:
+                left_cmd = "bash"
+
+            subprocess.run(
+                [tmux, "new-session", "-d", "-s", session, "-x", "220", "-y", "50"],
+                check=True,
+            )
+            subprocess.run(
+                [tmux, "send-keys", "-t", f"{session}:0", left_cmd, "Enter"],
+                check=True,
+            )
+            # Second pane (right) runs the status monitor.
+            subprocess.run(
+                [tmux, "split-window", "-h", "-t", f"{session}:0", monitor_cmd_text],
+                check=True,
+            )
+            # Keep focus on the outstream pane.
+            subprocess.run(
+                [tmux, "select-pane", "-t", f"{session}:0.0"],
+                check=True,
+            )
+            attach_cmd = f"tmux attach -t {session}"
+            return True, attach_cmd
+        except (OSError, subprocess.CalledProcessError):
             pass
 
-    terminal_candidates: list[list[str]] = []
-    if shutil.which("gnome-terminal"):
-        terminal_candidates.append(["gnome-terminal", "--", "bash", "-lc", monitor_cmd_text])
-    if shutil.which("x-terminal-emulator"):
-        terminal_candidates.append(["x-terminal-emulator", "-e", "bash", "-lc", monitor_cmd_text])
-
-    for command in terminal_candidates:
-        try:
-            subprocess.Popen(command, cwd=str(repo_root))
-            return True, None
-        except OSError:
-            continue
-
-    manual_hint = (
-        "Open a second terminal and run: "
-        + monitor_cmd_text
-    )
+    manual_hint = f"Open a second terminal and run: {monitor_cmd_text}"
     return False, manual_hint
 
 
@@ -873,16 +913,25 @@ def main() -> int:
     if out_root.exists():
         reset_project_status(out_root, args.project_status_filename)
 
+    # Tee stdout/stderr to a log file so the tmux outstream pane can tail it.
+    dse_log = out_root / "dse_run.log"
+    out_root.mkdir(parents=True, exist_ok=True)
+    dse_log.write_text("")  # truncate/create
+    sys.stdout = _TeeWriter(sys.stdout, dse_log)  # type: ignore[assignment]
+    sys.stderr = _TeeWriter(sys.stderr, dse_log)  # type: ignore[assignment]
+
     if args.monitor:
         launched, message = launch_status_monitor_terminal(
             repo_root,
             out_root / args.project_status_filename,
             args.monitor_interval,
+            outstream_log=dse_log,
         )
         if launched:
-            print(f"[monitor] Live status monitor started for {out_root / args.project_status_filename}")
+            print(f"[monitor] tmux session started — attach with: {message}")
+            print(f"[monitor] Watching: {out_root / args.project_status_filename}")
         else:
-            print(f"[monitor] Unable to auto-launch second terminal. {message}")
+            print(f"[monitor] Unable to auto-launch tmux session. {message}")
 
     dse_explorer = repo_root / "DSE_Explorer" / "dse_explorer.py"
     parse_hw = repo_root / "DSE_Explorer" / "scripts" / "parse_hardware.py"

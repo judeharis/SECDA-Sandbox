@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "secda-sandbox": {
+      "type": "stdio",
+      "command": "/home/jude/miniconda3/bin/python3",
+      "args": ["/mnt/Crucial/WorkspaceB/SECDA/SECDA-Sandbox/SECDA-DSE/mcp_server/server.py"],
+      "env": {}
+    }
+  }
+}
+
