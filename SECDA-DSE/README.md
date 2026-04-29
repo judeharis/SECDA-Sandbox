@@ -31,6 +31,7 @@ python3 SECDA-DSE/llm_to_dse.py \
   -e Acc-2 \
   -V v1 \
   -b KRIA \
+  -s 2 \
   -F
 ```
 
