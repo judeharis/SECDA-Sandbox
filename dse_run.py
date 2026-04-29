@@ -294,18 +294,14 @@ def stage_log_path(stage_key: str, run_dir: Path, settings: dict, out_root: Path
     return str(mapping[stage_key])
 
 
-def remote_run_success_from_log(run_log_path: Path) -> bool | None:
+def remote_run_success_from_log(run_log_path: Path) -> bool:
     if not run_log_path.exists():
-        return None
+        return False
     try:
         text = run_log_path.read_text(errors="replace")
     except OSError:
-        return None
-    if "Summary: run_id=" in text:
-        return True
-    if text.strip():
         return False
-    return None
+    return "Validation: PASSED" in text
 
 
 def blank_run_status(run_id: str) -> dict:
@@ -1149,7 +1145,7 @@ def main() -> int:
 
             run_log_path = Path(stage_log_path("fpga_binary_compilation", run_dir, settings, out_root))
             bazel_ok = run_log_path.exists() or result["ok"]
-            remote_ok = bool(result["ok"] and remote_run_success_from_log(run_log_path) is not False)
+            remote_ok = bool(result["ok"] and remote_run_success_from_log(run_log_path))
 
             if result["timed_out"]:
                 mark_stage_result(status, "fpga_binary_compilation", "timeout", result["duration_sec"], None, "timeout")
