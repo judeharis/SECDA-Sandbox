@@ -33,6 +33,16 @@ python3 SECDA-DSE/llm_to_dse.py \
   -b KRIA \
   -s 2 \
   -F
+
+python3 SECDA-DSE/llm_to_dse.py \
+  -i SECDA-DSE/input_space/v1 \
+  -e Acc-3 \
+  -V v1 \
+  -b KRIA \
+  -s 2 \
+  -f fpga \
+  -m \
+  -F
 ```
 
 Default output root is:
