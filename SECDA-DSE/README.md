@@ -12,7 +12,7 @@ This script automates:
 2. Place it under `SECDA-DSE/llm_experiments/<experiment-name>/<version>`.
 3. Normalize `hw_params.json` board/path metadata.
 4. Rewrite stale `//experiments/...` references to `//SECDA-DSE/llm_experiments/...`.
-5. Run `dse_run.py` stages: `generate -> hls -> sim -> collect`.
+5. Run `dse_run.py` with a flow preset (default: `sim_lite`).
 
 ## Required Input Layout
 
@@ -27,12 +27,11 @@ The input experiment folder must include:
 
 ```bash
 python3 SECDA-DSE/llm_to_dse.py \
-  --input SECDA-DSE/input_space/v1 \
-  --experiment-name Acc-2 \
-  --version v1 \
-  --target-board KRIA \
-  --keep-input \
-  --force
+  -i SECDA-DSE/input_space/v1 \
+  -e Acc-2 \
+  -V v1 \
+  -b KRIA \
+  -F
 ```
 
 Default output root is:
@@ -45,15 +44,31 @@ So the DSE results land under a folder like:
 
 ## Useful Options
 
-- `--keep-input`: copy source instead of moving it.
-- `--force`: overwrite existing destination experiment.
-- `--sample N`: deterministic sample size for generate stage.
-- `--no-run`: only validate/normalize/place; do not run DSE.
-- `--dry-run`: forward dry-run mode to `dse_run.py` stages.
-- `--strict-sim`: fail immediately if simulation stage fails.
+- `-i`, `--input`: source LLM experiment folder.
+- `-e`, `--experiment-name`: target experiment name under `llm_experiments`.
+- `-V`, `--version`: target experiment version (for example `v1`).
+- `-b`, `--target-board`: board normalization target (`KRIA` or `Z1`).
+- `-o`, `--output-root`: output root for generated DSE runs/results.
+- `-c`, `--settings`: path to `dse_setting.json`.
+- `-s`, `--sample`: deterministic sample size for generate stage.
+- `-f`, `--flow`: dse_run flow preset (default: `sim_lite`).
+- `-k`, `--keep-input` / `--no-keep-input`: copy (default) or move source experiment.
+- `-F`, `--force`: overwrite existing destination experiment.
+- `-n`, `--no-run`: only validate/normalize/place; do not run DSE.
+- `-d`, `--dry-run`: forward dry-run mode to `dse_run.py`.
+- `-x`, `--strict-sim`: fail immediately if dse_run fails when using a sim-containing flow.
+- `-m`, `--monitor`: forward to `dse_run.py --monitor`.
+- `-I`, `--monitor-interval N`: forward to `dse_run.py --monitor-interval`.
+- `-r`, `--resume`: forward to `dse_run.py --resume`.
+- `-P`, `--project-status-filename NAME`: forward to `dse_run.py`.
+- `-R`, `--run-status-filename NAME`: forward to `dse_run.py`.
+- `-T`, `--enable-timeouts` / `--no-enable-timeouts`: forward timeout toggle to `dse_run.py`.
+- `-B`, `--timeout-sim-bin`, `-U`, `--timeout-sim-run`, `-H`, `--timeout-hls`, `-X`, `--timeout-hlx`, `-C`, `--timeout-fpga-compile`, `-E`, `--timeout-fpga-exec`: forward timeout values to `dse_run.py`.
+- `-a`, `--dse-run-arg ARG`: append additional raw argument to `dse_run.py` (repeatable).
 
 ## Notes
 
-- The script runs HLS and simulation by default (not HLX).
-- By default, simulation failures are reported as warnings and the flow continues to collect available outputs.
-- If you later run HLX via `dse_run.py --stage hlx`, HLS status precondition must be satisfied.
+- The default flow is `sim_lite`.
+- By default, failures are reported as warnings and execution continues unless `--strict-sim` is set with a sim-containing flow.
+- You can use `--flow fpga` or `--flow all` for HLX/FPGA-inclusive runs.
+- SECDA-DSE now forwards common dse_run controls directly, including monitor and timeout options.

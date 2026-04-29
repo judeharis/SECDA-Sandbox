@@ -5,6 +5,7 @@
 		}
 	],
 	"settings": {
+		"explorer.excludeGitIgnore": true,
 		"files.associations": {
 			"ostream": "cpp",
 			"iostream": "cpp",

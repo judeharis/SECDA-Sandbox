@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Prepare LLM-generated experiments for DSE_Explorer and run HLS+SIM flow.
+"""Prepare LLM-generated experiments for DSE_Explorer and run dse_run flow.
 
 Workflow:
 1) Validate experiment folder structure.
 2) Move/copy into SECDA-DSE/llm_experiments/<exp_name>/<version>.
 3) Normalize hw_params.json and rewrite stale experiment paths in text files.
-4) Run dse_run.py stages: generate -> hls -> sim -> collect.
+4) Run dse_run.py with a selected flow (default: sim_lite).
 """
 
 from __future__ import annotations
@@ -148,10 +148,24 @@ def run_dse_flow(
     settings_path: Path,
     sample: int,
     dry_run: bool,
+    flow: str,
     strict_sim: bool,
+    monitor: bool,
+    monitor_interval: float,
+    resume: bool,
+    project_status_filename: str,
+    run_status_filename: str,
+    enable_timeouts: bool,
+    timeout_sim_bin: int,
+    timeout_sim_run: int,
+    timeout_hls: int,
+    timeout_hlx: int,
+    timeout_fpga_compile: int,
+    timeout_fpga_exec: int,
+    dse_run_args: list[str],
 ) -> None:
     dse_run = repo_root / "dse_run.py"
-    common = [
+    cmd = [
         sys.executable,
         str(dse_run),
         "--experiment",
@@ -160,107 +174,160 @@ def run_dse_flow(
         str(settings_path),
         "--output",
         str(output_root),
+        "--flow",
+        flow,
     ]
-
-    cmd_generate = common + ["--stage", "generate"]
     if sample > 0:
-        cmd_generate += ["--sample", str(sample)]
+        cmd += ["--sample", str(sample)]
+    if monitor:
+        cmd += ["--monitor"]
+        if monitor_interval != 2.0:
+            cmd += ["--monitor-interval", str(monitor_interval)]
+    if resume:
+        cmd += ["--resume"]
+    if project_status_filename != "Project_Status.json":
+        cmd += ["--project-status-filename", project_status_filename]
+    if run_status_filename != "Run_Status.json":
+        cmd += ["--run-status-filename", run_status_filename]
+    cmd += ["--enable-timeouts"] if enable_timeouts else ["--no-enable-timeouts"]
+    if timeout_sim_bin != 900:
+        cmd += ["--timeout-sim-bin", str(timeout_sim_bin)]
+    if timeout_sim_run != 1800:
+        cmd += ["--timeout-sim-run", str(timeout_sim_run)]
+    if timeout_hls != 3600:
+        cmd += ["--timeout-hls", str(timeout_hls)]
+    if timeout_hlx != 10800:
+        cmd += ["--timeout-hlx", str(timeout_hlx)]
+    if timeout_fpga_compile != 1800:
+        cmd += ["--timeout-fpga-compile", str(timeout_fpga_compile)]
+    if timeout_fpga_exec != 1800:
+        cmd += ["--timeout-fpga-exec", str(timeout_fpga_exec)]
     if dry_run:
-        cmd_generate += ["--dry-run"]
-    run_cmd(cmd_generate, repo_root)
-
-    if dry_run:
-        print(
-            "Dry-run mode: skipping hls and collect stages because generate dry-run "
-            "does not create runnable scripts."
-        )
-        return
-
-    cmd_hls = common + ["--stage", "hls"]
-    run_cmd(cmd_hls, repo_root)
-
-    cmd_sim = common + ["--stage", "sim"]
+        cmd += ["--dry-run"]
+    if dse_run_args:
+        cmd += dse_run_args
     try:
-        run_cmd(cmd_sim, repo_root)
+        run_cmd(cmd, repo_root)
     except subprocess.CalledProcessError:
-        if strict_sim:
+        if strict_sim and flow in {"sim", "sim_lite", "all"}:
             raise
         print(
-            "WARNING: Simulation stage failed for one or more runs. "
-            "Continuing to collect available outputs. "
-            "Use --strict-sim to fail fast on simulation errors."
+            "WARNING: dse_run flow failed for one or more runs. "
+            "Use --strict-sim with a sim-containing flow to fail fast."
         )
-
-    cmd_collect = common + ["--stage", "collect"]
-    run_cmd(cmd_collect, repo_root)
 
 
 def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     default_settings = repo_root / "DSE_Explorer" / "dse_setting.json"
 
-    p = argparse.ArgumentParser(description="Prepare LLM experiments and run DSE HLS+SIM flow")
+    p = argparse.ArgumentParser(description="Prepare LLM experiments and run dse_run flow")
     p.add_argument(
+        "-i",
         "--input",
         default=str(repo_root / "SECDA-DSE" / "input_space" / "v1"),
         help="Path to source LLM experiment folder",
     )
     p.add_argument(
+        "-e",
         "--experiment-name",
         required=True,
         help="Target experiment name under SECDA-DSE/llm_experiments",
     )
     p.add_argument(
+        "-V",
         "--version",
         default="v1",
         help="Target experiment version folder name (default: v1)",
     )
     p.add_argument(
+        "-b",
         "--target-board",
         choices=["KRIA", "Z1"],
         default="KRIA",
         help="Normalize hardware_gen.board and related fields",
     )
     p.add_argument(
+        "-o",
         "--output-root",
         default=str(repo_root / "SECDA-DSE" / "llm_generated"),
         help="Output root for generated DSE runs/results",
     )
     p.add_argument(
+        "-c",
         "--settings",
         default=str(default_settings),
         help="Path to dse_setting.json",
     )
     p.add_argument(
+        "-s",
         "--sample",
         type=int,
         default=0,
-        help="Optional deterministic sampling size for generate stage",
+        help="Optional deterministic sampling size passed to dse_run",
     )
     p.add_argument(
+        "-f",
+        "--flow",
+        choices=["sim", "fpga", "lite", "sim_lite", "all"],
+        default="sim_lite",
+        help="dse_run flow preset (default: sim_lite)",
+    )
+    p.add_argument(
+        "-k",
         "--keep-input",
-        action="store_true",
-        help="Copy source into llm_experiments instead of moving",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Copy source into llm_experiments instead of moving (default: enabled)",
     )
     p.add_argument(
+        "-F",
         "--force",
         action="store_true",
         help="Overwrite existing destination experiment folder",
     )
     p.add_argument(
+        "-n",
         "--no-run",
         action="store_true",
         help="Only validate/normalize/place experiment; do not run DSE stages",
     )
     p.add_argument(
+        "-d",
         "--dry-run",
         action="store_true",
         help="Forward dry-run to dse_run.py stages",
     )
     p.add_argument(
+        "-x",
         "--strict-sim",
         action="store_true",
-        help="Fail immediately if simulation stage fails",
+        help="Fail immediately if dse_run fails when using a sim-containing flow",
+    )
+    p.add_argument("-m", "--monitor", action="store_true", help="Pass through to dse_run --monitor")
+    p.add_argument("-I", "--monitor-interval", type=float, default=2.0, help="Pass through to dse_run --monitor-interval")
+    p.add_argument("-r", "--resume", action="store_true", help="Pass through to dse_run --resume")
+    p.add_argument("-P", "--project-status-filename", default="Project_Status.json", help="Pass through to dse_run --project-status-filename")
+    p.add_argument("-R", "--run-status-filename", default="Run_Status.json", help="Pass through to dse_run --run-status-filename")
+    p.add_argument(
+        "-T",
+        "--enable-timeouts",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Pass through to dse_run timeout enable/disable",
+    )
+    p.add_argument("-B", "--timeout-sim-bin", type=int, default=900, help="Pass through to dse_run --timeout-sim-bin")
+    p.add_argument("-U", "--timeout-sim-run", type=int, default=1800, help="Pass through to dse_run --timeout-sim-run")
+    p.add_argument("-H", "--timeout-hls", type=int, default=3600, help="Pass through to dse_run --timeout-hls")
+    p.add_argument("-X", "--timeout-hlx", type=int, default=10800, help="Pass through to dse_run --timeout-hlx")
+    p.add_argument("-C", "--timeout-fpga-compile", type=int, default=1800, help="Pass through to dse_run --timeout-fpga-compile")
+    p.add_argument("-E", "--timeout-fpga-exec", type=int, default=1800, help="Pass through to dse_run --timeout-fpga-exec")
+    p.add_argument(
+        "-a",
+        "--dse-run-arg",
+        action="append",
+        default=[],
+        help="Additional raw argument to forward to dse_run.py (repeatable)",
     )
     args = p.parse_args()
 
@@ -311,7 +378,21 @@ def main() -> int:
             settings_path=settings_path,
             sample=args.sample,
             dry_run=args.dry_run,
+            flow=args.flow,
             strict_sim=args.strict_sim,
+            monitor=args.monitor,
+            monitor_interval=args.monitor_interval,
+            resume=args.resume,
+            project_status_filename=args.project_status_filename,
+            run_status_filename=args.run_status_filename,
+            enable_timeouts=args.enable_timeouts,
+            timeout_sim_bin=args.timeout_sim_bin,
+            timeout_sim_run=args.timeout_sim_run,
+            timeout_hls=args.timeout_hls,
+            timeout_hlx=args.timeout_hlx,
+            timeout_fpga_compile=args.timeout_fpga_compile,
+            timeout_fpga_exec=args.timeout_fpga_exec,
+            dse_run_args=args.dse_run_arg,
         )
 
     exp_out = output_root / format_experiment_folder(dest_exp, settings["experiment_folder_format"])

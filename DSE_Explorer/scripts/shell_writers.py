@@ -8,87 +8,15 @@ def _write_lines(sh, lines: list[str]) -> None:
 
 
 def _write_update_status_function(sh, status_filename: str):
-    """Write a bash helper ``update_status`` into *sh*."""
-    sh.write(f'STATUS_FILE="$RUN_DIR/{status_filename}"\n')
+    """Write a no-op status helper to keep generated scripts compatible."""
     sh.write('update_status() {\n')
-    sh.write('  local stage="$1" action="$2" extra="${3:-}"\n')
-    sh.write('  STATUS_FILE="$STATUS_FILE" STAGE="$stage" ACTION="$action" EXTRA="$extra" python3 - <<\'_PYSTAT\'\n')
-    sh.write('import json, os, datetime, sys\n')
-    sh.write('from pathlib import Path\n')
-    sh.write('sf = Path(os.environ["STATUS_FILE"])\n')
-    sh.write('stage = os.environ["STAGE"]\n')
-    sh.write('action = os.environ["ACTION"]\n')
-    sh.write('extra = os.environ.get("EXTRA", "")\n')
-    sh.write('now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")\n')
-    sh.write('blank = {"attempted": False, "success": None, "exit_code": None, "timestamp": None, "duration_seconds": None}\n')
-    sh.write('try:\n')
-    sh.write('    data = json.loads(sf.read_text()) if sf.exists() else {}\n')
-    sh.write('except Exception:\n')
-    sh.write('    data = {}\n')
-    sh.write('s = data.setdefault(stage, dict(blank))\n')
-    sh.write('for k, v in blank.items():\n')
-    sh.write('    s.setdefault(k, v)\n')
-    sh.write('if action == "attempted":\n')
-    sh.write('    s["attempted"] = True\n')
-    sh.write('    s["timestamp"] = now\n')
-    sh.write('elif action == "success":\n')
-    sh.write('    s["success"] = True\n')
-    sh.write('    if extra: s["exit_code"] = int(extra)\n')
-    sh.write('    if not s["timestamp"]: s["timestamp"] = now\n')
-    sh.write('elif action == "failure":\n')
-    sh.write('    s["success"] = False\n')
-    sh.write('    if extra: s["exit_code"] = int(extra)\n')
-    sh.write('    if not s["timestamp"]: s["timestamp"] = now\n')
-    sh.write('elif action == "duration":\n')
-    sh.write('    try: s["duration_seconds"] = float(extra)\n')
-    sh.write('    except ValueError: pass\n')
-    sh.write('sf.parent.mkdir(parents=True, exist_ok=True)\n')
-    sh.write('sf.write_text(json.dumps(data, indent=2) + "\\n")\n')
-    sh.write('_PYSTAT\n')
+    sh.write('  :\n')
     sh.write('}\n\n')
 
 
 def _write_parse_hls_hlx_status(sh, hw_gen_dir_var: str, acc_tag_var: str):
-    """Write bash snippet that parses HLS/HLX logs and updates status."""
-    sh.write(f'HLS_LOG="${{{hw_gen_dir_var}}}/${{{acc_tag_var}}}/outputHLS.log"\n')
-    sh.write(f'HLX_LOG="${{{hw_gen_dir_var}}}/${{{acc_tag_var}}}/outputHLX.log"\n')
-    sh.write('HLS_LOG="$HLS_LOG" HLX_LOG="$HLX_LOG" STATUS_FILE="$STATUS_FILE" python3 - <<\'_PYHLSTAT\'\n')
-    sh.write('import json, os, re, datetime\n')
-    sh.write('from pathlib import Path\n')
-    sh.write('sf = Path(os.environ["STATUS_FILE"])\n')
-    sh.write('hls_log = Path(os.environ["HLS_LOG"])\n')
-    sh.write('hlx_log = Path(os.environ["HLX_LOG"])\n')
-    sh.write('now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")\n')
-    sh.write('blank = {"attempted": False, "success": None, "exit_code": None, "timestamp": None, "duration_seconds": None}\n')
-    sh.write('try:\n')
-    sh.write('    data = json.loads(sf.read_text()) if sf.exists() else {}\n')
-    sh.write('except Exception:\n')
-    sh.write('    data = {}\n')
-    sh.write('elapsed_re = re.compile(r"(?:Elapsed|Total elapsed)\\s+time[:\\s]+(\\d+)\\s*(?:hours?|h)[,\\s]+(\\d+)\\s*(?:minutes?|min|m)[,\\s]+(\\d+)\\s*(?:seconds?|sec|s)", re.I)\n')
-    sh.write('def parse_log(log_path, stage_key):\n')
-    sh.write('    s = data.setdefault(stage_key, dict(blank))\n')
-    sh.write('    for k, v in blank.items():\n')
-    sh.write('        s.setdefault(k, v)\n')
-    sh.write('    if not log_path.exists():\n')
-    sh.write('        return\n')
-    sh.write('    text = log_path.read_text(errors="replace")\n')
-    sh.write('    s["attempted"] = True\n')
-    sh.write('    if not s["timestamp"]:\n')
-    sh.write('        s["timestamp"] = now\n')
-    sh.write('    exit_tag = f"{stage_key.upper()} exit status: 1"\n')
-    sh.write('    if exit_tag in text:\n')
-    sh.write('        s["success"] = False\n')
-    sh.write('    elif re.search(r"Finished\\s+(?:Generating|C synthesis)", text, re.I) or re.search(r"write_bitstream completed successfully", text, re.I):\n')
-    sh.write('        s["success"] = True\n')
-    sh.write('    matches = list(elapsed_re.finditer(text))\n')
-    sh.write('    if matches:\n')
-    sh.write('        m = matches[-1]\n')
-    sh.write('        s["duration_seconds"] = int(m.group(1))*3600 + int(m.group(2))*60 + int(m.group(3))\n')
-    sh.write('parse_log(hls_log, "hls")\n')
-    sh.write('parse_log(hlx_log, "hlx")\n')
-    sh.write('sf.parent.mkdir(parents=True, exist_ok=True)\n')
-    sh.write('sf.write_text(json.dumps(data, indent=2) + "\\n")\n')
-    sh.write('_PYHLSTAT\n')
+    """Status is handled by dse_run.py; keep generated scripts file-write free."""
+    return
 
 
 def _write_board_info_section(sh, settings: dict) -> None:
@@ -291,6 +219,16 @@ def _write_hw_gen_execution_section(sh, settings: dict, failure_logs: list[str])
         '    fi\n',
         '  fi\n',
         'done\n',
+        'if [ "$RUN_HLS" -eq 1 ]; then\n',
+        '  CSYNTH_SRC="$(find "$HW_GEN_DIR/$ACC_TAG" -type f -name csynth.xml | head -n 1 || true)"\n',
+        '  if [ -n "$CSYNTH_SRC" ]; then\n',
+        '    if [ "$DRY_RUN" -eq 1 ]; then\n',
+        '      echo "DRY-RUN: cp $CSYNTH_SRC $RESULTS_DIR/csynth.xml"\n',
+        '    else\n',
+        '      cp "$CSYNTH_SRC" "$RESULTS_DIR/csynth.xml"\n',
+        '    fi\n',
+        '  fi\n',
+        'fi\n',
     ])
     _write_parse_hls_hlx_status(sh, 'HW_GEN_DIR', 'ACC_TAG')
     _write_lines(sh, [
@@ -722,8 +660,19 @@ def write_collect_dataset_script(script_path: Path, settings: dict) -> None:
         sh.write(f'if [ -f "$RUN_DIR/{settings["runs_csv"]}" ]; then\n')
         sh.write(f'  cp "$RUN_DIR/{settings["runs_csv"]}" "$DATASET_DIR/"\n')
         sh.write('fi\n')
+        sh.write('for status_file in Project_Status.json status.json; do\n')
+        sh.write('  if [ -f "$RUN_DIR/$status_file" ]; then\n')
+        sh.write('    cp "$RUN_DIR/$status_file" "$DATASET_DIR/$status_file"\n')
+        sh.write('    break\n')
+        sh.write('  fi\n')
+        sh.write('done\n')
         sh.write('echo "Dataset created under $DATASET_DIR"\n')
         sh.write(f'python3 "$REPO_ROOT/{settings["parse_hardware_script"]}" --dataset "$DATASET_DIR"\n')
+        sh.write('if find "$RUNS_DIR" -path "*/results/csynth.xml" -type f -print -quit | grep -q .; then\n')
+        sh.write(f'  python3 "$REPO_ROOT/DSE_Explorer/scripts/parse_hls.py" --dataset "$DATASET_DIR"\n')
+        sh.write('else\n')
+        sh.write('  echo "No results/csynth.xml files found under $RUNS_DIR; skipping HLS parsing"\n')
+        sh.write('fi\n')
         sh.write('if find "$RUNS_DIR" -path "*/results/*.log" -type f -print -quit | grep -q .; then\n')
         sh.write(f'  python3 "$REPO_ROOT/{settings["parse_performance_script"]}" --dataset "$DATASET_DIR"\n')
         sh.write('else\n')
