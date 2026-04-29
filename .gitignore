@@ -1,4 +1,4 @@
-.vscode
+# .vscode
 bazel-bin
 bazel-out
 bazel-testlogs

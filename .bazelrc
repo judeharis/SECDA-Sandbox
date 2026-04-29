@@ -2,6 +2,7 @@
 common --enable_bzlmod
 # common --lockfile_mode=off
 # common --registry=file:///mnt/Crucial/WorkspaceB/bazel-central-registry/
+common --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main/
 common --registry=https://raw.githubusercontent.com/judeharis/bazel-central-registry/main/
 # common --registry=file:///home/jude/Workspace/SECDA/bazel-central-registry/
 
@@ -12,3 +13,7 @@ common --registry=https://raw.githubusercontent.com/judeharis/bazel-central-regi
 build --incompatible_strict_action_env=true
 # Enable the CC toolchain resolution based on platforms.
 build --incompatible_enable_cc_toolchain_resolution
+
+# Fix for SystemC C++ standard compatibility
+# Force C++17 for foreign_cc builds (SystemC library)
+build --action_env=CXXFLAGS="-fPIC -std=c++17"

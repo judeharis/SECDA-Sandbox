@@ -1,0 +1,86 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "aximm_testing_v1",
+      "type": "shell",
+      "command": "bazel6 build //experiments/aximm_testing/v1:exp -c dbg --cxxopt='-DSYSC' --cxxopt='-DACC_PROFILE' --spawn_strategy=standalone  --subcommands  --platforms=//platform:linux_x64 --@secda_tools//:config=sysc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "mm_exp_v1",
+      "type": "shell",
+      "command": "bazel6 build //experiments/mm_exp/v1:exp -c dbg --cxxopt='-DSYSC' --cxxopt='-DACC_PROFILE' --spawn_strategy=standalone  --subcommands  --platforms=//platform:linux_x64 --@secda_tools//:config=sysc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "dma_exp_v1",
+      "type": "shell",
+      "command": "bazel6 build //experiments/dma_exp/v1:exp -c dbg --cxxopt='-DSYSC' --cxxopt='-DACC_PROFILE' --spawn_strategy=standalone  --subcommands  --platforms=//platform:linux_x64 --@secda_tools//:config=sysc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "dma_exp_v2",
+      "type": "shell",
+      "command": "bazel6 build //experiments/dma_exp/v2:exp -c dbg --cxxopt='-DSYSC' --cxxopt='-DACC_PROFILE' --spawn_strategy=standalone  --subcommands  --platforms=//platform:linux_x64 --@secda_tools//:config=sysc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "dma_exp_v3",
+      "type": "shell",
+      "command": "bazel6 build //experiments/dma_exp/v3:exp -c dbg --cxxopt='-DSYSC' --cxxopt='-DACC_PROFILE' --spawn_strategy=standalone  --subcommands  --platforms=//platform:linux_x64 --@secda_tools//:config=sysc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "dma_exp_v4",
+      "type": "shell",
+      "command": "bazel6 build //experiments/dma_exp/v4:exp -c dbg --cxxopt='-DSYSC' --cxxopt='-DACC_PROFILE' --spawn_strategy=standalone  --subcommands  --platforms=//platform:linux_x64 --@secda_tools//:config=sysc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "vadd_exp_v1",
+      "type": "shell",
+      "command": "bazel6 build //experiments/vadd_exp/v1:exp -c dbg --cxxopt='-DSYSC' --cxxopt='-DACC_PROFILE' --spawn_strategy=standalone  --subcommands  --platforms=//platform:linux_x64 --@secda_tools//:config=sysc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "vector_add_secda_v1",
+      "type": "shell",
+      "command": "bazel6 build //experiments/vector_add_secda/v1:exp -c dbg --cxxopt='-DSYSC' --cxxopt='-DACC_PROFILE' --spawn_strategy=standalone  --subcommands  --platforms=//platform:linux_x64 --@secda_tools//:config=sysc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "vmul_exp_v1",
+      "type": "shell",
+      "command": "bazel6 build //experiments/vmul_exp/v1:exp -c dbg --cxxopt='-DSYSC' --cxxopt='-DACC_PROFILE' --spawn_strategy=standalone  --subcommands  --platforms=//platform:linux_x64 --@secda_tools//:config=sysc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}
